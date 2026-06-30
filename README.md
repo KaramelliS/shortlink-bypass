@@ -38,20 +38,20 @@ A **zero-dependency** Python script that bypasses ad-filled shortlink pages and 
 
 ```bash
 # Single link
-python3 bypass.py https://ay.live/ODNsR
+python3 bypass.py https://ay.live/EXAMPLE
 
 # Multiple links (batch mode)
-python3 bypass.py https://ay.live/abc https://cpmlink.co/xyz
+python3 bypass.py https://ay.live/EXAMPLE https://cpmlink.co/EXAMPLE
 
 # Pipe-friendly (just URLs on stdout)
-python3 bypass.py https://ay.live/ODNsR 2>/dev/null
+python3 bypass.py https://ay.live/EXAMPLE 2>/dev/null
 ```
 
 **Output:**
 ```
-[*] aylink: https://ay.live/ODNsR
-[*] resolved slug: ODNsR
-→ https://cloud.mail.ru/public/D1EW/MAF6JJ7AQ
+[*] aylink: https://ay.live/EXAMPLE
+[*] resolved slug: EXAMPLE
+→ https://cloud.mail.ru/public/xxxx/xxxxxxxxx
 ```
 
 ---

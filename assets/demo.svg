@@ -24,28 +24,27 @@
 
   <!-- Line 1: prompt -->
   <text x="16" y="62" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13">$</text>
-  <text x="28" y="62" fill="#c0caf5" font-family="'JetBrains Mono',monospace" font-size="13">python3 bypass.py https://ay.live/ODNsR</text>
+  <text x="28" y="62" fill="#c0caf5" font-family="'JetBrains Mono',monospace" font-size="13">python3 bypass.py https://ay.live/EXAMPLE</text>
 
   <!-- Line 2: output -->
-  <text x="16" y="86" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] aylink: https://ay.live/ODNsR</text>
-  <text x="16" y="108" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] resolved slug: ODNsR</text>
+  <text x="16" y="86" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] aylink: https://ay.live/EXAMPLE</text>
+  <text x="16" y="108" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] resolved slug: EXAMPLE</text>
 
   <!-- Line 3: final URL box -->
-  <rect x="86" y="124" width="440" height="14" rx="2" fill="#292e42" opacity="0.0"/>
   <text x="16" y="136" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13" font-weight="bold">→</text>
-  <text x="36" y="136" fill="#73daca" font-family="'JetBrains Mono',monospace" font-size="13">https://cloud.mail.ru/public/D1EW/MAF6JJ7AQ</text>
+  <text x="36" y="136" fill="#73daca" font-family="'JetBrains Mono',monospace" font-size="13">https://cloud.mail.ru/public/xxxx/xxxxxxxxx</text>
 
   <!-- Separator line -->
   <text x="16" y="164" fill="#565f89" font-family="'JetBrains Mono',monospace" font-size="13">─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</text>
 
   <!-- Line 4: cpmlink command -->
   <text x="16" y="190" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13">$</text>
-  <text x="28" y="190" fill="#c0caf5" font-family="'JetBrains Mono',monospace" font-size="13">python3 bypass.py https://cpmlink.co/7VcB</text>
+  <text x="28" y="190" fill="#c0caf5" font-family="'JetBrains Mono',monospace" font-size="13">python3 bypass.py https://cpmlink.co/EXAMPLE</text>
 
-  <text x="16" y="214" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] cpmlink: https://cpmlink.co/7VcB</text>
+  <text x="16" y="214" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] cpmlink: https://cpmlink.co/EXAMPLE</text>
 
   <text x="16" y="242" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13" font-weight="bold">→</text>
-  <text x="36" y="242" fill="#73daca" font-family="'JetBrains Mono',monospace" font-size="13">https://cloud.mail.ru/public/Y7iD/tAQiHhYjs</text>
+  <text x="36" y="242" fill="#73daca" font-family="'JetBrains Mono',monospace" font-size="13">https://cloud.mail.ru/public/xxxx/xxxxxxxxx</text>
 
   <!-- Line 5: batch command -->
   <text x="16" y="270" fill="#565f89" font-family="'JetBrains Mono',monospace" font-size="13">─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</text>
