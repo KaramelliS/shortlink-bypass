@@ -81,18 +81,7 @@ which curl
 
 ---
 
-## 🧪 Test links
 
-| Shortlink | Expects |
-|-----------|---------|
-| `https://ay.live/ODNsR` | cloud.mail.ru/public/D1EW/MAF6JJ7AQ |
-| `https://ay.live/jA9Lnl` | cloud.mail.ru/public/uZy4/PFZ6TTYEE |
-| `https://cpmlink.co/7VcB` | cloud.mail.ru/public/Y7iD/tAQiHhYjs |
-| `https://cpmlink.co/ZPDF7` | cloud.mail.ru/public/kx4Y/AboSZ33tx |
-
-> **Note:** These links may expire. The script will still work with any valid aylink/cpmlink URL.
-
----
 
 ## 🔧 Advanced: Telegram Bot Integration
 
