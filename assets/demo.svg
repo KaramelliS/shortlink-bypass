@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="320" viewBox="0 0 720 320">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&amp;display=swap');
+    </style>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a1b26"/>
+      <stop offset="100%" stop-color="#0f0f17"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Window -->
+  <rect x="0" y="0" width="720" height="320" rx="10" fill="url(#bg)"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="0" width="720" height="36" rx="10" fill="#1f2233"/>
+  <rect x="0" y="18" width="720" height="18" fill="#1f2233"/>
+  <!-- dots -->
+  <circle cx="18" cy="18" r="5" fill="#ff5f57"/>
+  <circle cx="34" cy="18" r="5" fill="#ffbd2e"/>
+  <circle cx="50" cy="18" r="5" fill="#28c840"/>
+  <!-- title -->
+  <text x="360" y="24" fill="#8b8fa3" font-family="'JetBrains Mono',monospace" font-size="12" text-anchor="middle">shortlink-bypass — terminal</text>
+
+  <!-- Line 1: prompt -->
+  <text x="16" y="62" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13">$</text>
+  <text x="28" y="62" fill="#c0caf5" font-family="'JetBrains Mono',monospace" font-size="13">python3 bypass.py https://ay.live/ODNsR</text>
+
+  <!-- Line 2: output -->
+  <text x="16" y="86" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] aylink: https://ay.live/ODNsR</text>
+  <text x="16" y="108" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] resolved slug: ODNsR</text>
+
+  <!-- Line 3: final URL box -->
+  <rect x="86" y="124" width="440" height="14" rx="2" fill="#292e42" opacity="0.0"/>
+  <text x="16" y="136" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13" font-weight="bold">→</text>
+  <text x="36" y="136" fill="#73daca" font-family="'JetBrains Mono',monospace" font-size="13">https://cloud.mail.ru/public/D1EW/MAF6JJ7AQ</text>
+
+  <!-- Separator line -->
+  <text x="16" y="164" fill="#565f89" font-family="'JetBrains Mono',monospace" font-size="13">─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</text>
+
+  <!-- Line 4: cpmlink command -->
+  <text x="16" y="190" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13">$</text>
+  <text x="28" y="190" fill="#c0caf5" font-family="'JetBrains Mono',monospace" font-size="13">python3 bypass.py https://cpmlink.co/7VcB</text>
+
+  <text x="16" y="214" fill="#9ece6a" font-family="'JetBrains Mono',monospace" font-size="13">[*] cpmlink: https://cpmlink.co/7VcB</text>
+
+  <text x="16" y="242" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13" font-weight="bold">→</text>
+  <text x="36" y="242" fill="#73daca" font-family="'JetBrains Mono',monospace" font-size="13">https://cloud.mail.ru/public/Y7iD/tAQiHhYjs</text>
+
+  <!-- Line 5: batch command -->
+  <text x="16" y="270" fill="#565f89" font-family="'JetBrains Mono',monospace" font-size="13">─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─</text>
+
+  <text x="16" y="296" fill="#7aa2f7" font-family="'JetBrains Mono',monospace" font-size="13">$</text>
+  <text x="28" y="296" fill="#c0caf5" font-family="'JetBrains Mono',monospace" font-size="13">python3 bypass.py link1 link2 link3  # batch mode</text>
+</svg>
