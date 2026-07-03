@@ -1,125 +1,113 @@
-<p align="center">
-  <img src="assets/demo.svg" alt="ShortLink Bypass Demo" width="720">
-</p>
+# ShortLink Bypass
 
-<h1 align="center">🔗 ShortLink Bypass</h1>
-<p align="center">
-  <b>ay.live · aylink.co · cpmlink.co · cpmlink.pro</b>
-  <br>
-  <i>No ads. No countdowns. Just the real link.</i>
-</p>
+Universal multi-service shortlink bypass tool — no browser, no ads, just curl + Python.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/python-3.8+-blue?logo=python&logoColor=white">
-  <img src="https://img.shields.io/badge/license-MIT-green">
-  <img src="https://img.shields.io/badge/works-cURL-orange?logo=curl">
-  <img src="https://img.shields.io/badge/platform-Linux%20%7C%20macOS%20%7C%20Termux-lightgrey">
-</p>
+Bypass link shorteners by reverse-engineering their internal API flows. No external APIs, no captchas, no browser automation needed for supported services.
 
----
+## Features
 
-## 🚀 What is this?
+- **No browser needed** — pure HTTP(S) requests via curl
+- **No API keys** — self-contained, all logic is local
+- **Batch mode** — process multiple links at once
+- **70+ services** — 40 native handlers + 30 fallback-tracked services
+- **Zero dependencies** — only needs `curl` and Python 3.8+
 
-A **zero-dependency** Python script that bypasses ad-filled shortlink pages and gives you the **final destination URL directly**.
+## Supported Services
 
-**Supported services:**
-| Domain | Type |
-|--------|------|
-| `ay.live` | Redirect → aylink.co |
-| `aylink.co` | Turkish shortener (cloud.mail.ru) |
-| `cpmlink.co` | Paid CPM shortener |
-| `cpmlink.pro` | Mirror of cpmlink.co |
+### ✅ Native Handlers (fully working)
 
-> **Why?** These sites make you wait 5+ seconds, show popup ads, and track your clicks. This script goes straight to the API — no ads, no waiting.
+| Category | Services |
+|----------|----------|
+| **Token-based** | aylink.co, ay.live, cpmlink.co, cpmlink.pro |
+| **GraphQL** | linkvertise.com, link-target.net, link-center.net, link-hub.net, direct-link.net |
+| **Redirect-follow** | adf.ly, adfoc.us, shorte.st, ouo.io, ouo.press, bit.ly, tinyurl.com, cutt.ly, is.gd, v.gd, rebrand.ly, t.co, rb.gy, tiny.one, short.link, ow.ly, buff.ly, shorturl.at, shrinkearn.com, shrinkme.io, linkbucks.com, bc.vc, soo.gd, mcaf.ee, clck.ru, 0x0.st, gg.gg, tiny.cc, youtu.be, fb.me, lnkd.in |
 
----
+### 🔄 Fallback-tracked (need browser/API — PRs welcome)
 
-## ⚡ Usage
+work.ink, workink.click, boost.ink, mboost.me, rekonise.com, lootlabs.com, lootlinks.com, loot-link.com, sub2unlock.com, sub2unlock.net, sub2unlock.io, sub2get.com, sub4unlock.com, sub4unlock.pro, subfinal.com, social-unlock.com, socialwolvez.com, lockr.social, just2earn.com, gplinks.in, gplinks.co, try2link.com, shareus.in, droplink.co, tnlink.in, xpshort.com, ez4short.com, rocklinks.net, gtlinks.me, pkin.me
+
+## Installation
 
 ```bash
-# Single link
+git clone https://github.com/KaramelliS/shortlink-bypass.git
+cd shortlink-bypass
+chmod +x bypass.py
+```
+
+Requirements: `curl` (any modern version), Python 3.8+.
+
+For Linkvertise support, the `requests` library is needed:
+```bash
+# Most systems have it pre-installed. If not:
+pip install requests
+```
+
+## Usage
+
+```bash
+# Single URL
 python3 bypass.py https://ay.live/EXAMPLE
 
-# Multiple links (batch mode)
-python3 bypass.py https://ay.live/EXAMPLE https://cpmlink.co/EXAMPLE
+# Multiple URLs
+python3 bypass.py https://ay.live/EXAMPLE1 https://cpmlink.co/EXAMPLE2
 
-# Pipe-friendly (just URLs on stdout)
-python3 bypass.py https://ay.live/EXAMPLE 2>/dev/null
+# Batch mode (one URL per line)
+python3 bypass.py --batch links.txt
+
+# List all supported services
+python3 bypass.py --list-services
+
+# Pipe output
+python3 bypass.py https://ay.live/EXAMPLE >> resolved.txt
 ```
 
-**Output:**
+### Output format
+
+Each bypassed URL is printed on its own line:
+
 ```
-[*] aylink: https://ay.live/EXAMPLE
-[*] resolved slug: EXAMPLE
-→ https://cloud.mail.ru/public/xxxx/xxxxxxxxx
-```
-
----
-
-## 🛠 How it works
-
-These shorteners use a common architecture:
-
-1. **Landing page** loads with JavaScript variables (`_a`, `_t`, `_d`)
-2. **Countdown** runs (5 seconds of ads)
-3. **Client-side JS** sends `_a`, `_t`, `_d` to `/get/tk` → receives token
-4. **Client-side JS** POSTs to `/links/go2` with token + fake browser signal
-5. Server returns the **real URL**
-
-This script **replicates steps 1→3→4** without loading a browser or showing ads. It also handles the intermediate `bildirim.online` redirect to `cloud.mail.ru`.
-
----
-
-## 📦 Dependencies
-
-**None.** Just Python 3.8+ and `curl` (pre-installed on virtually every system).
-
-```bash
-# Check if curl is available
-which curl
+https://cloud.mail.ru/public/XXXX/YYYYY
 ```
 
----
+Failed URLs are printed to stderr with the `[-]` prefix:
+```
+[-] Failed: https://example.com/badlink
+```
 
+## How It Works
 
+### Aylink / CPMLink
+These services use a JavaScript-based token flow:
+1. Fetch landing page → extract `_a`, `_t`, `_d` tokens + CSRF + visitor token
+2. POST to `/get/tk` with extracted tokens → get session key
+3. POST to `/links/go2` with fake browser signal → get destination URL
+4. Follow `bildirim.online` intermediate redirect → final `cloud.mail.ru` URL
 
-## 🔧 Advanced: Telegram Bot Integration
+### Linkvertise
+Uses the internal GraphQL API:
+1. `getDetailPageContent` mutation → get access token
+2. `completeDetailPageContent` mutation → get post token
+3. `getDetailPageTarget` mutation → get final URL
 
-You can easily wrap this in a Telegram bot:
+### Simple Shorteners
+Follows HTTP redirect chains with browser-like headers. Works for adf.ly, bit.ly, tinyurl, cutt.ly, is.gd, and 30+ similar services.
+
+## Adding New Services
+
+To add a new service, create a function in `bypass.py` and add it to the `DOMAIN_HANDLERS` dict:
 
 ```python
-import subprocess
+def bypass_myservice(url):
+    # Your bypass logic here
+    return destination_url
 
-def bypass(url):
-    r = subprocess.run(
-        ["python3", "bypass.py", url],
-        capture_output=True, text=True, timeout=30
-    )
-    return r.stdout.strip().split("\n")[-1]  # last line = final URL
+DOMAIN_HANDLERS["myservice.com"] = bypass_myservice
 ```
 
----
+## License
 
-## ⚠️ Disclaimer
+MIT
 
-This tool is for **educational purposes only**. Bypassing shorteners may violate their Terms of Service. Use at your own risk.
+## Author
 
-The author is not responsible for how you use this tool or any content accessed through it.
-
----
-
-## 🤝 Contributing
-
-Found a dead link? API changed? Open an issue or PR!
-
-To-do:
-- [ ] Add more shortlink services (adf.ly, ouo.io, shorte.st)
-- [ ] Web interface (Flask/FastAPI)
-- [ ] Docker image
-- [ ] GitHub Actions auto-test
-
----
-
-<p align="center">
-  <sub>Made with ☕ and curiosity</sub>
-</p>
+[KaramelliS](https://github.com/KaramelliS)
