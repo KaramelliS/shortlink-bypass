@@ -5,7 +5,7 @@
 set -e
 
 INSTALL_DIR="${1:-/usr/local/bin}"
-SCRIPT_URL="https://raw.githubusercontent.com/KaramelliS/shortlink-bypass/master/bypass.py"
+SCRIPT_URL="https://raw.githubusercontent.com/KaramelliS/shortlink-bypass/master/shortlink_bypass/bypass.py"
 
 echo "[*] Installing ShortLink Bypass to $INSTALL_DIR..."
 

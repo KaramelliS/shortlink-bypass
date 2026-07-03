@@ -35,7 +35,10 @@ Repository = "https://github.com/KaramelliS/shortlink-bypass"
 "Bug Tracker" = "https://github.com/KaramelliS/shortlink-bypass/issues"
 
 [project.scripts]
-shortlink-bypass = "bypass:main"
+shortlink-bypass = "shortlink_bypass.bypass:main"
 
 [tool.setuptools.packages.find]
-include = ["*"]
+include = ["shortlink_bypass*"]
+
+[tool.setuptools.package_data]
+shortlink_bypass = ["*.txt"]
