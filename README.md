@@ -1,30 +1,78 @@
-# ShortLink Bypass
+# ShortLink Bypass 🔗
 
-Universal multi-service shortlink bypass tool — no browser, no ads, just curl + Python.
+**1610 shortlink services.** One tool. No browser. No ads.
 
-Bypass link shorteners by reverse-engineering their internal API flows. No external APIs, no captchas, no browser automation needed for supported services.
+Bypass link shorteners by reverse-engineering their internal API flows, token extraction, form submission, XOR decoding, and HTTP redirect following.
 
-## Features
+```bash
+python3 bypass.py https://ay.live/EXAMPLE
+python3 bypass.py https://bit.ly/EXAMPLE https://tinyurl.com/EXAMPLE
+python3 bypass.py --batch links.txt
+python3 bypass.py --list-services   # see all 1610 services
+```
 
-- **No browser needed** — pure HTTP(S) requests via curl
-- **No API keys** — self-contained, all logic is local
-- **Batch mode** — process multiple links at once
-- **70+ services** — 40 native handlers + 30 fallback-tracked services
-- **Zero dependencies** — only needs `curl` and Python 3.8+
+## Stats
 
-## Supported Services
+| Category | Count | Method |
+|----------|------:|--------|
+| 🎯 Specific native handlers | 23 | Token flow, GraphQL, XOR decode, form bypass, base64 decode |
+| 📋 Form-based (Type 1/2) | 43 | Form extraction → POST `/links/go` |
+| 🔗 Redirect-follow (PeterDaveHello) | **1479** | HTTP redirect chain with curl -L |
+| 🚫 IP Logger blocklist | 34 | Blocked outright |
+| **✅ Total bypassable** | **1579** | |
+| 🔄 Fallback (browser-based) | 31 | Social unlocks, WebSocket services |
+| **🔥 GRAND TOTAL** | **1610** | |
 
-### ✅ Native Handlers (fully working)
+## How It Works — Architecture
 
-| Category | Services |
-|----------|----------|
-| **Token-based** | aylink.co, ay.live, cpmlink.co, cpmlink.pro |
-| **GraphQL** | linkvertise.com, link-target.net, link-center.net, link-hub.net, direct-link.net |
-| **Redirect-follow** | adf.ly, adfoc.us, shorte.st, ouo.io, ouo.press, bit.ly, tinyurl.com, cutt.ly, is.gd, v.gd, rebrand.ly, t.co, rb.gy, tiny.one, short.link, ow.ly, buff.ly, shorturl.at, shrinkearn.com, shrinkme.io, linkbucks.com, bc.vc, soo.gd, mcaf.ee, clck.ru, 0x0.st, gg.gg, tiny.cc, youtu.be, fb.me, lnkd.in |
+The tool uses a **layered handler system** — each URL is matched against progressively more specific handlers:
 
-### 🔄 Fallback-tracked (need browser/API — PRs welcome)
+```
+URL → IP Logger check → Specific handler → Form handler → Known shortener → Generic redirect
+```
 
-work.ink, workink.click, boost.ink, mboost.me, rekonise.com, lootlabs.com, lootlinks.com, loot-link.com, sub2unlock.com, sub2unlock.net, sub2unlock.io, sub2get.com, sub4unlock.com, sub4unlock.pro, subfinal.com, social-unlock.com, socialwolvez.com, lockr.social, just2earn.com, gplinks.in, gplinks.co, try2link.com, shareus.in, droplink.co, tnlink.in, xpshort.com, ez4short.com, rocklinks.net, gtlinks.me, pkin.me
+### Layer 1: Specific Native Handlers (23 services)
+
+| Service | Method | Technique |
+|---------|--------|-----------|
+| **aylink.co / ay.live** | Token flow | JS vars → `/get/tk` → `/links/go2` with fake browser signal |
+| **cpmlink.co / cpmlink.pro** | Token flow | Same as aylink, different field names |
+| **linkvertise.com** (+4 aliases) | GraphQL | `getDetailPageContent` → `completeDetailPageContent` → `getDetailPageTarget` |
+| **adf.ly** | XOR decode | `ysmm` token: interleave → XOR → base64 → strip header |
+| **boost.ink / mboost.me** | Base64 decode | Extract `kekw` attribute → base64 decode |
+| **ouo.io / ouo.press** | Page scrape | Extract `window.location` or meta refresh URL |
+| **try2link.com** | Form bypass | Timestamp param → form extraction → POST `/links/go` |
+| **gplinks.co / gplinks.in** | Form bypass | Redirect → vid param → form extraction → POST `/links/go` |
+| **pkin.me** | Form bypass | Mobile UA → form extraction → POST `/links/go` |
+| **shareus.in** | API call | Firebase Cloud Function direct call |
+| **anonym.to / anonymz.com / hidereferrer.com / leechall.com** | Base64 param | Extract and decode base64 from URL parameter |
+
+### Layer 2: Form-Based (43 services)
+
+These Indian shorteners share a common PHP backend:
+1. Fetch landing page with referer
+2. Extract all `<input>` values from `<form id="go-link">`
+3. Sleep 5-10 seconds (anti-bot delay)
+4. POST to `/links/go` with `X-Requested-With: XMLHttpRequest`
+5. Parse JSON `{"url": "..."}` response
+
+**Services:** droplink.co, tnlink.in, ez4short.com, xpshort.com, rocklinks.net, open2get.in, linkbnao.com, linkpays.in, pi-l.ink, adrinolinks.in, techymozo.com, bitshorten.com, earn4link.in, za.uy, gtlinks.me, and 28 more.
+
+### Layer 3: Known Shorteners (1479 services)
+
+Loaded from **PeterDaveHello/url-shorteners** — the most comprehensive public shortener domain list. The tool checks if a URL's domain is in this list and follows HTTP redirect chains. Works for virtually all standard URL shorteners.
+
+**Examples:** bit.ly, tinyurl.com, cutt.ly, is.gd, v.gd, shorte.st, rebrand.ly, t.co, ow.ly, buff.ly, shorturl.at, clck.ru, 0x0.st, gg.gg, tiny.cc, youtu.be, fb.me, lnkd.in, festyy.com, gestyy.com, ceesty.com, corneey.com, destyy.com, t2m.io, disq.us, page.link, shortcm.li, and **1450+ more**.
+
+### Layer 4: IP Logger Blocklist (34 domains)
+
+Known IP logging/tracking services are detected and blocked: iplogger.com, grabify.link, 2no.co, blasze.com, and 30 more.
+
+### Fallback (31 services)
+
+These services require browser interaction (captcha solving, WebSocket, or social verification) and cannot be bypassed with curl alone. They're tracked for future implementation:
+
+work.ink, boost.ink, mboost.me, rekonise.com, lootlabs.com, lootlinks.com, sub2unlock.com, sub2unlock.net, social-unlock.com, socialwolvez.com, lockr.social, just2earn.com, and 19 more.
 
 ## Installation
 
@@ -34,13 +82,9 @@ cd shortlink-bypass
 chmod +x bypass.py
 ```
 
-Requirements: `curl` (any modern version), Python 3.8+.
+**Requirements:** `curl` (any modern version), Python 3.8+.
 
-For Linkvertise support, the `requests` library is needed:
-```bash
-# Most systems have it pre-installed. If not:
-pip install requests
-```
+For Linkvertise support: `pip install requests`
 
 ## Usage
 
@@ -54,55 +98,28 @@ python3 bypass.py https://ay.live/EXAMPLE1 https://cpmlink.co/EXAMPLE2
 # Batch mode (one URL per line)
 python3 bypass.py --batch links.txt
 
-# List all supported services
+# List all 1610 supported services
 python3 bypass.py --list-services
 
-# Pipe output
-python3 bypass.py https://ay.live/EXAMPLE >> resolved.txt
+# Update shortener database from PeterDaveHello
+python3 bypass.py --update-list
 ```
 
-### Output format
+Output: each bypassed URL is printed on its own line. Failed URLs go to stderr with `[-]` prefix.
 
-Each bypassed URL is printed on its own line:
+## Update Domain Database
 
-```
-https://cloud.mail.ru/public/XXXX/YYYYY
-```
+The tool ships with 1479 known shortener domains from [PeterDaveHello/url-shorteners](https://github.com/PeterDaveHello/url-shorteners). To get the latest list:
 
-Failed URLs are printed to stderr with the `[-]` prefix:
-```
-[-] Failed: https://example.com/badlink
+```bash
+python3 bypass.py --update-list
 ```
 
-## How It Works
+## Credits
 
-### Aylink / CPMLink
-These services use a JavaScript-based token flow:
-1. Fetch landing page → extract `_a`, `_t`, `_d` tokens + CSRF + visitor token
-2. POST to `/get/tk` with extracted tokens → get session key
-3. POST to `/links/go2` with fake browser signal → get destination URL
-4. Follow `bildirim.online` intermediate redirect → final `cloud.mail.ru` URL
-
-### Linkvertise
-Uses the internal GraphQL API:
-1. `getDetailPageContent` mutation → get access token
-2. `completeDetailPageContent` mutation → get post token
-3. `getDetailPageTarget` mutation → get final URL
-
-### Simple Shorteners
-Follows HTTP redirect chains with browser-like headers. Works for adf.ly, bit.ly, tinyurl, cutt.ly, is.gd, and 30+ similar services.
-
-## Adding New Services
-
-To add a new service, create a function in `bypass.py` and add it to the `DOMAIN_HANDLERS` dict:
-
-```python
-def bypass_myservice(url):
-    # Your bypass logic here
-    return destination_url
-
-DOMAIN_HANDLERS["myservice.com"] = bypass_myservice
-```
+- **PeterDaveHello/url-shorteners** — Primary domain list (1479 domains)
+- **FastForward Team** — Bypass patterns and encoding algorithms
+- **bypass-all-shortlinks-debloated** — Additional domain references
 
 ## License
 
