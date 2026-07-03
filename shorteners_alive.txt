@@ -1,3 +1,6 @@
+# Alive shortener domains (1240)
+# Checked: 2026-07-04 00:32:31
+
 0.gp
 02faq.com
 0a.sk

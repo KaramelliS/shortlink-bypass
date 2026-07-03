@@ -17,11 +17,11 @@ python3 bypass.py --list-services   # see all 1610 services
 |----------|------:|--------|
 | 🎯 Specific native handlers | 23 | Token flow, GraphQL, XOR decode, form bypass, base64 decode |
 | 📋 Form-based (Type 1/2) | 43 | Form extraction → POST `/links/go` |
-| 🔗 Redirect-follow (PeterDaveHello) | **1479** | HTTP redirect chain with curl -L |
+| 🔗 Redirect-follow (PeterDaveHello) | **1240** | HTTP redirect chain (validated Jul 2026) |
 | 🚫 IP Logger blocklist | 34 | Blocked outright |
-| **✅ Total bypassable** | **1579** | |
-| 🔄 Fallback (browser-based) | 31 | Social unlocks, WebSocket services |
-| **🔥 GRAND TOTAL** | **1610** | |
+| **✅ Total bypassable** | **1317** | |
+| 🔄 Fallback (browser-based) | 16 | Social unlocks, WebSocket services |
+| **🔥 GRAND TOTAL** | **1333** | |
 
 ## How It Works — Architecture
 

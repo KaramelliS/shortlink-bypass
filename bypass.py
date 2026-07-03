@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
 ShortLink Bypass — Universal Multi-Service Bypass Tool
-Bypass 1500+ shortlink services. No browser, no ads, just curl + Python.
+Bypass 1371 shortlink services. No browser, no ads, just curl + Python.
 
 Features:
   - 45+ specific native handlers (token flows, GraphQL, form bypass, XOR decode)
-  - 1479+ known shorteners via redirect-follow (auto-detected)
-  - IP logger blocking (60+ domains)
+  - 1240+ known shorteners via redirect-follow (auto-detected, validated Jul 2026)
+  - IP logger blocking (34+ domains)
   - Auto-downloads latest domain list from PeterDaveHello/url-shorteners
 
 Usage:
@@ -646,8 +646,8 @@ def main():
         for d in sorted(SPECIFIC_HANDLERS): print(f"  {d}")
         print(f"\n=== Form-based (40+) ===")
         for d in sorted(TYPE_SERVICES): print(f"  {d}")
-        print(f"\n=== Redirect-follow from PeterDaveHello ({peter_count}) ===")
-        print(f"  (1479 known shortener domains — run with any URL to bypass)")
+        print(f"=== Redirect-follow from PeterDaveHello ({peter_count}) ===")
+        print(f"  ({peter_count} known shortener domains — validated Jul 2026)")
         print(f"\n=== IP Logger Blocklist ({ip_count}) ===")
         for d in sorted(IP_LOGGERS): print(f"  {d}")
         print(f"\n=== Fallback Only ({fallback_count}) ===")
