@@ -653,9 +653,12 @@ def main():
         print(f"\n=== Fallback Only ({fallback_count}) ===")
         for d in sorted(FALLBACK_ONLY): print(f"  {d}")
         print(f"\n{'='*50}")
-        print(f"Total bypassable: {total_supported}")
+        print(f"Total bypassable: {specific_count + form_count + peter_count + ip_count}")
         print(f"Plus fallback:    {fallback_count}")
-        print(f"Grand total:      {total_supported + fallback_count}")
+        # Subtract overlapping domains between PeterDaveHello and our specific/form lists
+        overlap = sum(1 for d in KNOWN_SHORTENERS if any(k in d for k in SPECIFIC_HANDLERS) or any(k in d for k in TYPE_SERVICES) or any(k in d for k in IP_LOGGERS))
+        grand = specific_count + form_count + peter_count + ip_count + fallback_count - overlap
+        print(f"Grand total:      {grand} (net, minus {overlap} overlaps)")
         print(f"{'='*50}")
         sys.exit(0)
 
