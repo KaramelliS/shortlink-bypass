@@ -6,7 +6,6 @@ Bypass 1371 shortlink services. No browser, no ads, just curl + Python.
 Features:
   - 45+ specific native handlers (token flows, GraphQL, form bypass, XOR decode)
   - 1240+ known shorteners via redirect-follow (auto-detected, validated Jul 2026)
-  - IP logger blocking (34+ domains)
   - Auto-downloads latest domain list from PeterDaveHello/url-shorteners
 
 Usage:
@@ -545,18 +544,6 @@ SPECIFIC_HANDLERS = {
     "leechall.com": bypass_base64_param,
 }
 
-# IP Logger blocklist (60+ domains)
-IP_LOGGERS = {
-    "iplogger.com","iplogger.co","iplogger.info","iplogger.org","iplogger.ru",
-    "grabify.link","2no.co","gyazo.in","gyazo.nl","leancoding.co",
-    "stopify.co","discord.kim","blasze.com","blasze.tk",
-    "ipgrab.org","ezstat.ru","freeyeti.net","bmwforum.co",
-    "pix-e.ru","i.uwu.net","x0.at","trackerteer.com",
-    "ps3cfw.com","yeticloud.xyz","hyperhost.xyz","huntblock.com",
-    "clemleo.com","resolveurl.com","astrohandle.com","thinfi.com",
-    "bc.vc","shorturl.is","dub.sh","shorturl.vc",
-}
-
 # Fallback-only (browser-based social unlocks)
 FALLBACK_ONLY = {
     "work.ink","workink.click","rekonise.com",
@@ -572,11 +559,6 @@ FALLBACK_ONLY = {
 
 def get_handler(url):
     domain = urllib.parse.urlparse(url).netloc.lower()
-
-    # Check IP loggers
-    for d in IP_LOGGERS:
-        if d in domain:
-            return None, "ip_logger"
 
     # Check specific handlers
     for key, handler in SPECIFIC_HANDLERS.items():
@@ -639,8 +621,6 @@ def main():
         form_count = len(TYPE_SERVICES)
         peter_count = len(KNOWN_SHORTENERS)
         fallback_count = len(FALLBACK_ONLY)
-        ip_count = len(IP_LOGGERS)
-        total_supported = specific_count + form_count + peter_count + ip_count
 
         print("=== Specific Native Handlers ===")
         for d in sorted(SPECIFIC_HANDLERS): print(f"  {d}")
@@ -648,17 +628,13 @@ def main():
         for d in sorted(TYPE_SERVICES): print(f"  {d}")
         print(f"=== Redirect-follow from PeterDaveHello ({peter_count}) ===")
         print(f"  ({peter_count} known shortener domains — validated Jul 2026)")
-        print(f"\n=== IP Logger Blocklist ({ip_count}) ===")
-        for d in sorted(IP_LOGGERS): print(f"  {d}")
         print(f"\n=== Fallback Only ({fallback_count}) ===")
         for d in sorted(FALLBACK_ONLY): print(f"  {d}")
         print(f"\n{'='*50}")
-        print(f"Total bypassable: {specific_count + form_count + peter_count + ip_count}")
+        print(f"Total bypassable: {specific_count + form_count + peter_count}")
         print(f"Plus fallback:    {fallback_count}")
-        # Subtract overlapping domains between PeterDaveHello and our specific/form lists
-        overlap = sum(1 for d in KNOWN_SHORTENERS if any(k in d for k in SPECIFIC_HANDLERS) or any(k in d for k in TYPE_SERVICES) or any(k in d for k in IP_LOGGERS))
-        grand = specific_count + form_count + peter_count + ip_count + fallback_count - overlap
-        print(f"Grand total:      {grand} (net, minus {overlap} overlaps)")
+        grand = specific_count + form_count + peter_count + fallback_count
+        print(f"Grand total:      {grand}")
         print(f"{'='*50}")
         sys.exit(0)
 

@@ -1,6 +1,6 @@
 # ShortLink Bypass 🔗
 
-**1362 shortlink services.** One tool. No browser. No ads.
+**1337 shortlink services.** One tool. No browser. No ads.
 
 Bypass link shorteners by reverse-engineering their internal API flows, token extraction, form submission, XOR decoding, and HTTP redirect following.
 
@@ -18,10 +18,9 @@ python3 bypass.py --list-services   # see all 1362 services
 | 🎯 Specific native handlers | 23 | Token flow, GraphQL, XOR decode, form bypass, base64 decode |
 | 📋 Form-based (Type 1/2) | 43 | Form extraction → POST `/links/go` |
 | 🔗 Redirect-follow (PeterDaveHello) | **1240** | HTTP redirect chain (validated Jul 2026) |
-| 🚫 IP Logger blocklist | 34 | Blocked outright |
-| **✅ Total bypassable** | **1340** | |
+| **✅ Total bypassable** | **1306** | |
 | 🔄 Fallback (browser-based) | 31 | Social unlocks, WebSocket services |
-| **🔥 GRAND TOTAL** | **1362** | (net after dedup overlaps) |
+| **🔥 GRAND TOTAL** | **1337** | |
 
 ## How It Works — Architecture
 
