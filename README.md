@@ -25,8 +25,8 @@
 
   <p>
     <code>pip install shortlink-bypass</code> •
-    <code>curl -sL https://git.io/shortlink-bypass | bash</code> •
-    <code>python3 bypass.py https://ay.live/EXAMPLE</code>
+    <code>python3 -m shortlink_bypass https://ay.live/EXAMPLE</code> •
+    <code>python3 -c "from shortlink_bypass import bypass; print(bypass('https://ay.live/EXAMPLE'))"</code>
   </p>
 </div>
 
@@ -178,7 +178,31 @@ Follows HTTP 301/302/307 redirect chains with browser-like User-Agent. Works for
 pip install shortlink-bypass
 ```
 
-The pip package includes the same `bypass.py` script with all 1337 service support.
+### Use as library in your code
+
+```python
+from shortlink_bypass import bypass
+
+# Single URL
+url = bypass("https://ay.live/EXAMPLE")
+print(url)  # https://cloud.mail.ru/...
+
+# Multiple URLs
+urls = [bypass(u) for u in ["https://ay.live/A", "https://bit.ly/B"]]
+```
+
+### Use as CLI
+
+```bash
+# Via pip entry point
+shortlink-bypass https://ay.live/EXAMPLE
+
+# Via python -m
+python3 -m shortlink_bypass https://ay.live/EXAMPLE
+
+# Batch
+python3 -m shortlink_bypass --batch links.txt
+```
 
 ## 🐳 Docker
 
