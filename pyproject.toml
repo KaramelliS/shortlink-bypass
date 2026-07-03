@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "shortlink-bypass"
+version = "3.1.0"
+description = "Bypass 1337 URL shorteners — aylink, cpmlink, linkvertise, adf.ly, boost.ink, 1240+ more. No browser, no ads, just curl+Python."
+readme = "README.md"
+authors = [
+    {name = "KaramelliS", email = "karamellis@github.com"},
+]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Internet :: WWW/HTTP",
+    "Topic :: Utilities",
+]
+keywords = ["shortlink", "bypass", "url-shortener", "linkvertise", "adfly", "aylink", "cpmlink", "link-bypass"]
+requires-python = ">=3.8"
+
+[project.urls]
+Homepage = "https://github.com/KaramelliS/shortlink-bypass"
+Repository = "https://github.com/KaramelliS/shortlink-bypass"
+"Bug Tracker" = "https://github.com/KaramelliS/shortlink-bypass/issues"
+
+[project.scripts]
+shortlink-bypass = "bypass:main"
+
+[tool.setuptools.packages.find]
+include = ["*"]
