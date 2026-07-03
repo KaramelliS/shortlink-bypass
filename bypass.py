@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 ShortLink Bypass — Universal Multi-Service Bypass Tool
-Native handlers for 90+ shortlink services. No browser, no ads.
+Native handlers for 150+ shortlink services. No browser, no ads.
+Covers: token flows, GraphQL, form bypass, base64/XOR decoding, redirect chains.
 
 Usage:
     python3 bypass.py <shortlink_url> [shortlink_url2 ...]
@@ -11,10 +12,11 @@ Usage:
 GitHub: https://github.com/KaramelliS/shortlink-bypass
 """
 
-import subprocess, json, re, sys, tempfile, os, urllib.parse, time
+import subprocess, json, re, sys, tempfile, os, urllib.parse, time, base64
 
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 MOBILE_UA = "Mozilla/5.0 (Linux; Android 11; 2201116PI) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Mobile Safari/537.36"
+IPHONE_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 
 # ── helpers ──────────────────────────────────────────────────────────
 
@@ -26,8 +28,7 @@ def curl(args, cookie=None, timeout=30):
     return r.stdout, r.stderr
 
 def clean_url(url):
-    url = url.strip().strip('"').strip("'")
-    return url
+    return url.strip().strip('"').strip("'")
 
 def follow_bildirim(final, cookie, ref):
     if "bildirim.online" in final:
@@ -38,34 +39,12 @@ def follow_bildirim(final, cookie, ref):
     return final
 
 def extract_form_inputs(html):
-    """Extract all input name/value pairs from a form, or just all inputs"""
     data = {}
     for m in re.finditer(r'<input[^>]*name="([^"]*)"[^>]*value="([^"]*)"', html):
         data[m.group(1)] = m.group(2)
     for m in re.finditer(r'<input[^>]*value="([^"]*)"[^>]*name="([^"]*)"', html):
         data[m.group(2)] = m.group(1)
     return data
-
-def go_link_post(cookie, domain, slug, data, ref=None, timeout=15, skip_sleep=False):
-    """POST to /links/go and return URL from JSON"""
-    if not skip_sleep:
-        time.sleep(0.5)
-    hdrs = [
-        "-H", f"User-Agent: {UA}",
-        "-H", "X-Requested-With: XMLHttpRequest",
-        "-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8",
-    ]
-    if ref:
-        hdrs += ["-H", f"Referer: {ref}"]
-
-    body = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in data.items())
-    raw, _ = curl([
-        f"{domain.rstrip('/')}/links/go",
-    ] + hdrs + ["--data", body], cookie, timeout)
-    try:
-        return json.loads(raw).get("url", "")
-    except json.JSONDecodeError:
-        return None
 
 def try_import_requests():
     global requests
@@ -77,8 +56,75 @@ def try_import_requests():
         requests = None
         return False
 
+# ── encoding/decoding utilities ──────────────────────────────────────
+
+def decode_base64(s):
+    """Try to decode base64 string, padding if needed"""
+    try:
+        s = s.strip()
+        # Add padding
+        missing = len(s) % 4
+        if missing:
+            s += '=' * (4 - missing)
+        return base64.b64decode(s).decode('utf-8', errors='replace')
+    except:
+        return None
+
+def decode_adfly_ysmm(ysmm):
+    """Decode AdF.ly ysmm token using FastForward algorithm"""
+    try:
+        # Interleave: even positions form first half, odd form second half
+        # Then XOR consecutive pairs of digits
+        first_digit = ""
+        second_digit = ""
+        for i, c in enumerate(ysmm):
+            if i % 2 == 0:
+                first_digit += c
+            else:
+                second_digit = c + second_digit
+
+        # Combine
+        combined = first_digit + second_digit
+        
+        # De-XOR consecutive pairs
+        chars = list(combined)
+        key = "ABCEDFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+        
+        for i in range(len(chars) - 1):
+            if i + 1 < len(chars):
+                a = key.find(chars[i])
+                b = key.find(chars[i + 1])
+                if a >= 0 and b >= 0:
+                    xor_val = a ^ b
+                    if xor_val < len(key):
+                        chars[i] = key[xor_val]
+
+        result = "".join(chars)
+        
+        # Base64 decode and strip header
+        decoded = decode_base64(result)
+        if decoded:
+            # Strip first 16 chars (noise/header)
+            return decoded[16:]
+    except:
+        pass
+    return None
+
+def decode_base64_from_url(url, param=None, path_pos=None):
+    """Decode base64 from URL param or path segment"""
+    parsed = urllib.parse.urlparse(url)
+    if param:
+        val = urllib.parse.parse_qs(parsed.query).get(param, [None])[0]
+        if val:
+            return decode_base64(val)
+    if path_pos is not None:
+        parts = [p for p in parsed.path.split("/") if p]
+        if path_pos < len(parts):
+            return decode_base64(parts[path_pos])
+    return None
+
 # ═══════════════════════════════════════════════════════════════════
-# native handlers — aylink / cpmlink
+# token-based handlers — aylink / cpmlink
 # ═══════════════════════════════════════════════════════════════════
 
 def bypass_aylink(url):
@@ -87,10 +133,8 @@ def bypass_aylink(url):
     if "ay.live" in url:
         out, _ = curl([url, "-o", "/dev/null", "-w", "%{url_effective}", "-H", f"User-Agent: {UA}"])
         slug = out.strip().rstrip("/").split("/")[-1]
-
     cookie = tempfile.mktemp()
     def c(args): return curl(args, cookie)
-
     html, _ = c([f"https://aylink.co/{slug}", "-H", f"User-Agent: {UA}"])
     _a = re.search(r"_a\s*=\s*'([^']+)'", html)
     _t = re.search(r"_t\s*=\s*'([^']+)'", html)
@@ -100,11 +144,9 @@ def bypass_aylink(url):
     if not all([_a, _t, _d, csrf, tok]):
         os.remove(cookie)
         return None
-
     _a, _t, _d = _a.group(1), _t.group(1), _d.group(1)
     csrf_val, tok_val = csrf.group(1), tok.group(1)
     ref = f"https://aylink.co/{slug}"
-
     tk_raw, _ = c([
         "https://aylink.co/get/tk",
         "-H", f"User-Agent: {UA}", "-H", f"Referer: {ref}",
@@ -119,7 +161,6 @@ def bypass_aylink(url):
     except (KeyError, json.JSONDecodeError):
         os.remove(cookie)
         return None
-
     signal = json.dumps({
         "t": int(time.time()), "d": 5,
         "m": {"move": 5, "click": 1, "scroll": 1, "key": 0, "touch": 0, "focus": 1},
@@ -141,7 +182,6 @@ def bypass_aylink(url):
     except json.JSONDecodeError:
         os.remove(cookie)
         return None
-
     final = follow_bildirim(final, cookie, ref)
     os.remove(cookie)
     return final
@@ -150,7 +190,6 @@ def bypass_cpmlink(url):
     print(f"[*] cpmlink: {url}", file=sys.stderr)
     cookie = tempfile.mktemp()
     def c(args): return curl(args, cookie)
-
     html, _ = c([url, "-H", f"User-Agent: {UA}"])
     _a = re.search(r"_a\s*=\s*'([^']+)'", html)
     _t = re.search(r"_t\s*=\s*'([^']+)'", html)
@@ -161,12 +200,10 @@ def bypass_cpmlink(url):
     if not all([_a, _t, _d, csrf, vtoken, alias]):
         os.remove(cookie)
         return None
-
     _a, _t, _d = _a.group(1), _t.group(1), _d.group(1)
     csrf_val, vtoken_val = csrf.group(1), vtoken.group(1)
     slug = alias.group(1)
     ref = f"https://cpmlink.pro/{slug}"
-
     tk_raw, _ = c([
         "https://cpmlink.pro/get/tk",
         "-H", f"User-Agent: {UA}", "-H", f"Referer: {ref}",
@@ -180,7 +217,6 @@ def bypass_cpmlink(url):
     except (KeyError, json.JSONDecodeError):
         os.remove(cookie)
         return None
-
     signal = json.dumps({
         "t": int(time.time()), "d": 5,
         "m": {"move": 5, "click": 1, "scroll": 1, "key": 0, "touch": 0, "focus": 1},
@@ -200,13 +236,12 @@ def bypass_cpmlink(url):
     except json.JSONDecodeError:
         os.remove(cookie)
         return None
-
     final = follow_bildirim(final, cookie, ref)
     os.remove(cookie)
     return final
 
 # ═══════════════════════════════════════════════════════════════════
-# native handler — linkvertise (GraphQL)
+# GraphQL — linkvertise
 # ═══════════════════════════════════════════════════════════════════
 
 LINKVERTISE_GRAPHQL = "https://publisher.linkvertise.com/graphql"
@@ -231,41 +266,34 @@ def bypass_linkvertise(url):
     path = [p for p in parsed.path.strip("/").split("/") if p]
     if len(path) < 2: return None
     user_id, post_id = path[0], path[1]
-
     session = requests.Session()
-    session.headers.update({"User-Agent": UA, "Origin": "https://linkvertise.com", "Referer": "https://linkvertise.com"})
+    session.headers.update({"User-Agent": IPHONE_UA, "Origin": "https://linkvertise.com", "Referer": "https://linkvertise.com"})
     post_data = {"userIdAndUrl": {"user_id": user_id, "url": post_id}}
     additional = {"taboola": {"user_id": "fallbackUserId", "url": url}}
-
     try:
         r1 = session.post(LINKVERTISE_GRAPHQL, json={
             "operationName": "getDetailPageContent", "variables": {
                 "linkIdentificationInput": post_data, "origin": "sharing", "additional_data": additional,
             }, "query": GDPC_QUERY,
         }, timeout=20)
-        r1.raise_for_status()
-        d1 = r1.json()
+        r1.raise_for_status(); d1 = r1.json()
         if "errors" in d1: return None
         access_token = d1["data"]["getDetailPageContent"]["access_token"]
-
         r2 = session.post(LINKVERTISE_GRAPHQL, json={
             "operationName": "completeDetailPageContent", "variables": {
                 "linkIdentificationInput": post_data,
                 "completeDetailPageContentInput": {"access_token": access_token},
             }, "query": CDPC_QUERY,
         }, timeout=20)
-        r2.raise_for_status()
-        d2 = r2.json()
+        r2.raise_for_status(); d2 = r2.json()
         if "errors" in d2: return None
         post_token = d2["data"]["completeDetailPageContent"]["TARGET"]
-
         r3 = session.post(LINKVERTISE_GRAPHQL, json={
             "operationName": "getDetailPageTarget", "variables": {
                 "linkIdentificationInput": post_data, "token": post_token,
             }, "query": GDPT_QUERY,
         }, timeout=20)
-        r3.raise_for_status()
-        d3 = r3.json()
+        r3.raise_for_status(); d3 = r3.json()
         if "errors" in d3: return None
         return d3["data"]["getDetailPageTarget"]["url"]
     except Exception as e:
@@ -273,119 +301,197 @@ def bypass_linkvertise(url):
         return None
 
 # ═══════════════════════════════════════════════════════════════════
-# generic go-link form bypass (Type 1 — Indian shorteners)
+# AdF.ly — ysmm XOR decode
 # ═══════════════════════════════════════════════════════════════════
 
-# Type 1 config: {domain_prefix: [form_domain, sleep_secs]}
-TYPE1_CONFIG = {
-    "tekcrypt.in/tek/": ["https://tekcrypt.in/tek/", 5],
-    "link.short2url.in/": ["https://technemo.xyz/blog/", 5],
-    "go.rocklinks.net/": ["https://dwnld.povathemes.com/", 5],
-    "rocklinks.net/": ["https://dwnld.povathemes.com/", 5],
-    "gtlinks.me/": ["https://gtlinks.me/", 5],
-    "loan.kinemaster.cc/": ["https://loan.kinemaster.cc/", 5],
-    "theforyou.in/": ["https://www.theforyou.in/", 5],
-    "safeurl.sirigan.my.id/": ["https://safeurl.sirigan.my.id/", 5],
-    "thinfi.com/": ["https://thinfi.com/", 5],
-    "hypershort.com/": ["https://hypershort.com/", 5],
-    "shortly.xyz/": ["https://www.shortly.xyz/", 5],
-    "za.uy/": ["https://za.uy/", 5],
-    # These may share the same backend pattern
-    "bitlyearn.in/": ["https://bitlyearn.in/", 7],
+def bypass_adfly(url):
+    """AdF.ly — extract ysmm token from page, XOR decode to get real URL"""
+    print(f"[*] adfly: {url}", file=sys.stderr)
+    cookie = tempfile.mktemp()
+    try:
+        html, _ = curl([url, "-H", f"User-Agent: {UA}"], cookie)
+        # Extract ysmm token from the page
+        m = re.search(r"var ysmm\s*=\s*'([^']+)'", html)
+        if m:
+            decoded = decode_adfly_ysmm(m.group(1))
+            if decoded and decoded.startswith("http"):
+                os.remove(cookie)
+                return decoded
+        # fallback: try redirect follow with iPhone UA
+        out, _ = curl([url, "-o", "/dev/null", "-w", "%{url_effective}",
+                       "-H", f"User-Agent: {IPHONE_UA}", "-e", "https://adf.ly/"], cookie)
+        final = out.strip()
+        if final and final != url:
+            os.remove(cookie)
+            return final
+    except: pass
+    try: os.remove(cookie)
+    except: pass
+    return None
+
+# ═══════════════════════════════════════════════════════════════════
+# Boost.ink — base64 kekw decode
+# ═══════════════════════════════════════════════════════════════════
+
+def bypass_boost(url):
+    """boost.ink — extract base64 from kekw attribute"""
+    print(f"[*] boost: {url}", file=sys.stderr)
+    try:
+        html, _ = curl([url, "-H", f"User-Agent: {UA}"])
+        # FastForward's boost.js extracts kekw="base64data" 
+        m = re.search(r'kekw\s*=\s*["\']([^"\']+)["\']', html)
+        if m:
+            decoded = decode_base64(m.group(1))
+            if decoded:
+                # May contain extract URL
+                url_m = re.search(r'https?://[^\s"<>]+', decoded)
+                if url_m:
+                    return url_m.group(0)
+                return decoded
+        # fallback to redirect follow
+        return bypass_redirect(url)
+    except:
+        return bypass_redirect(url)
+
+# ═══════════════════════════════════════════════════════════════════
+# base64/encoding-based bypasses (from FastForward rules.json)
+# ═══════════════════════════════════════════════════════════════════
+
+def bypass_base64_param(url):
+    """Extract URL from base64-encoded URL parameter"""
+    print(f"[*] b64param: {url}", file=sys.stderr)
+    for param in ['url', 'link', 'r', 'go', 'site', 'data', 'id', 'q', 'u', 'to']:
+        decoded = decode_base64_from_url(url, param=param)
+        if decoded and decoded.startswith("http"):
+            return decoded
+    return None
+
+def bypass_base64_path(url, path_pos=-1):
+    """Extract URL from base64-encoded path segment"""
+    print(f"[*] b64path: {url}", file=sys.stderr)
+    parts = [p for p in urllib.parse.urlparse(url).path.split("/") if p]
+    positions = [path_pos] if path_pos >= 0 else range(len(parts))
+    for pos in positions:
+        if pos < len(parts):
+            decoded = decode_base64(parts[pos])
+            if decoded and decoded.startswith("http"):
+                return decoded
+    return None
+
+def bypass_generic_b64(url):
+    """Try various base64 decoding strategies from FastForward rules"""
+    # Try query param base64
+    result = bypass_base64_param(url)
+    if result: return result
+    # Try path base64
+    result = bypass_base64_path(url)
+    if result: return result
+    return None
+
+# ═══════════════════════════════════════════════════════════════════
+# Type 1/2 form-based bypasses (Indian shorteners)
+# ═══════════════════════════════════════════════════════════════════
+
+TYPE_SERVICES = {
+    # (domain_prefix_match, form_domain, referer, sleep, use_go_link)
+    # Form-based with id="go-link" → POST to /links/go
+    "go.rocklinks.net": ("https://dwnld.povathemes.com/", "https://dwnld.povathemes.com/", 7, True),
+    "rocklinks.net": ("https://dwnld.povathemes.com/", "https://dwnld.povathemes.com/", 7, True),
+    "droplink.co": ("https://droplink.co/", "https://yoshare.net", 5, True),
+    "tnlink.in": ("https://gadgets.usanewstoday.club/", "https://usanewstoday.club/", 7, True),
+    "ez4short.com": ("https://ez4short.com/", "https://techmody.io/", 7, True),
+    "xpshort.com": ("https://push.bdnewsx.com/", "https://veganho.co/", 7, True),
+    "vearnl.in": ("https://go.urlearn.xyz/", "https://v.modmakers.xyz/", 7, True),
+    "adrinolinks.in": ("https://adrinolinks.in/", "https://wikitraveltips.com/", 7, True),
+    "techymozo.com": ("https://push.bdnewsx.com/", "https://veganho.co/", 7, True),
+    "linkbnao.com": ("https://go.linkbnao.com/", "https://doibihar.org/", 5, True),
+    "linksxyz.in": ("https://blogshangrila.com/insurance/", "https://cypherroot.com/", 7, True),
+    "short-jambo.com": ("https://short-jambo.com/", "https://aghtas.com/", 7, True),
+    "ads.droplink.co.in": ("https://go.droplink.co.in/", "https://go.droplink.co.in/", 7, True),
+    "linkpays.in": ("https://m.techpoints.xyz//", "https://www.filmypoints.in/", 7, True),
+    "pi-l.ink": ("https://go.pilinks.net/", "https://poketoonworld.com/", 7, True),
+    "link.tnlink.in": ("https://gadgets.usanewstoday.club/", "https://usanewstoday.club/", 7, True),
+    "open2get.in": ("https://m.open2get.in/", "https://ezeviral.com/", 5, True),
+    "earn4link.in": ("https://m.open2get.in/", "https://ezeviral.com/", 5, True),
+    "mdiskshortner.link": ("https://mdiskshortner.link/", "https://mdiskshortner.link/", 7, True),
+    "pdiskshortener.com": ("https://pdiskshortener.com/", "https://pdiskshortener.com/", 7, True),
+    "go.earnl.xyz": ("https://go.earnl.xyz/", "https://v.earnl.xyz/", 7, True),
+    "g.rewayatcafe.com": ("https://course.rewayatcafe.com/", "https://course.rewayatcafe.com/", 7, True),
+    "indianshortner.in": ("https://indianshortner.com/", "https://indianshortner.com/", 7, True),
+    "m.easysky.in": ("https://techy.veganab.co/", "https://techy.veganab.co/", 7, True),
+    "earn.moneykamalo.com": ("https://go.moneykamalo.com//", "https://go.moneykamalo.com/", 7, True),
+    "open.crazyblog.in": ("https://hr.vikashmewada.com/", "https://hr.vikashmewada.com/", 7, True),
+    "link.tnvalue.in": ("https://internet.webhostingtips.club/", "https://internet.webhostingtips.club/", 7, True),
+    "shortingly.me": ("https://go.techyjeeshan.xyz/", "https://go.techyjeeshan.xyz/", 7, True),
+    "dulink.in": ("https://tekcrypt.in/tek/", "https://tekcrypt.in/tek/", 10, True),
+    "bindaaslinks.com": ("https://www.techishant.in/blog/", "https://www.techishant.in/blog/", 7, True),
+    "ser2.crazyblog.in": ("https://ser3.crazyblog.in/", "https://ser3.crazyblog.in/", 7, True),
+    "bitshorten.com": ("https://bitshorten.com/", "https://bitshorten.com/", 7, True),
+    "rocklink.in": ("https://rocklink.in/", "https://rocklink.in/", 7, True),
+    "link.short2url.in": ("https://technemo.xyz/blog/", "https://technemo.xyz/blog/", 7, True),
+    "tekcrypt.in": ("https://tekcrypt.in/tek/", "https://tekcrypt.in/tek/", 10, True),
+    "za.uy": ("https://za.uy/", "https://za.uy/", 7, True),
+    "gtlinks.me": ("https://gtlinks.me/", "https://gtlinks.me/", 7, True),
+    "loan.kinemaster.cc": ("https://loan.kinemaster.cc/", "https://loan.kinemaster.cc/", 7, True),
+    "theforyou.in": ("https://www.theforyou.in/", "https://www.theforyou.in/", 7, True),
+    "safeurl.sirigan.my.id": ("https://safeurl.sirigan.my.id/", "https://safeurl.sirigan.my.id/", 7, True),
+    "thinfi.com": ("https://thinfi.com/", "https://thinfi.com/", 7, True),
+    "hypershort.com": ("https://hypershort.com/", "https://hypershort.com/", 7, True),
+    "shortly.xyz": ("https://www.shortly.xyz/", "https://www.shortly.xyz/", 7, True),
 }
 
-# Type 2 config: {domain_prefix: [form_domain, referer_domain, sleep_secs]}
-TYPE2_CONFIG = {
-    "droplink.co/": ["https://droplink.co/", "https://yoshare.net", 4],
-    "earn4link.in/": ["https://m.open2get.in/", "https://ezeviral.com/", 3],
-    "tnlink.in/": ["https://gadgets.usanewstoday.club/", "https://usanewstoday.club/", 5],
-    "ez4short.com/": ["https://ez4short.com/", "https://techmody.io/", 5],
-    "xpshort.com/": ["https://push.bdnewsx.com/", "https://veganho.co/", 5],
-    "vearnl.in/": ["https://go.urlearn.xyz/", "https://v.modmakers.xyz/", 5],
-    "adrinolinks.in/": ["https://adrinolinks.in/", "https://wikitraveltips.com/", 5],
-    "techymozo.com/": ["https://push.bdnewsx.com/", "https://veganho.co/", 5],
-    "linkbnao.com/": ["https://go.linkbnao.com/", "https://doibihar.org/", 5],
-    "linksxyz.in/": ["https://blogshangrila.com/insurance/", "https://cypherroot.com/", 5],
-    "short-jambo.com/": ["https://short-jambo.com/", "https://aghtas.com/", 5],
-    "ads.droplink.co.in/": ["https://go.droplink.co.in/", "https://go.droplink.co.in/", 5],
-    "linkpays.in/": ["https://m.techpoints.xyz//", "https://www.filmypoints.in/", 5],
-    "pi-l.ink/": ["https://go.pilinks.net/", "https://poketoonworld.com/", 5],
-    "link.tnlink.in/": ["https://gadgets.usanewstoday.club/", "https://usanewstoday.club/", 5],
-    "open2get.in/": ["https://m.open2get.in/", "https://ezeviral.com/", 3],
-    "mdiskshortner.link/": ["https://mdiskshortner.link/", "https://mdiskshortner.link/", 5],
-    "pdiskshortener.com/": ["https://pdiskshortener.com/", "https://pdiskshortener.com/", 5],
-    "go.earnl.xyz/": ["https://go.earnl.xyz/", "https://v.earnl.xyz/", 5],
-    "g.rewayatcafe.com/": ["https://course.rewayatcafe.com/", "https://course.rewayatcafe.com/", 5],
-    "indianshortner.in/": ["https://indianshortner.com/", "https://indianshortner.com/", 5],
-    "m.easysky.in/": ["https://techy.veganab.co/", "https://techy.veganab.co/", 5],
-    "earn.moneykamalo.com/": ["https://go.moneykamalo.com//", "https://go.moneykamalo.com/", 5],
-    "open.crazyblog.in/": ["https://hr.vikashmewada.com/", "https://hr.vikashmewada.com/", 5],
-    "link.tnvalue.in/": ["https://internet.webhostingtips.club/", "https://internet.webhostingtips.club/", 5],
-    "shortingly.me/": ["https://go.techyjeeshan.xyz/", "https://go.techyjeeshan.xyz/", 5],
-    "dulink.in/": ["https://tekcrypt.in/tek/", "https://tekcrypt.in/tek/", 10],
-    "bindaaslinks.com/": ["https://www.techishant.in/blog/", "https://www.techishant.in/blog/", 5],
-    "ser2.crazyblog.in/": ["https://ser3.crazyblog.in/", "https://ser3.crazyblog.in/", 5],
-    "bitshorten.com/": ["https://bitshorten.com/", "https://bitshorten.com/", 5],
-    "rocklink.in/": ["https://rocklink.in/", "https://rocklink.in/", 5],
-    "link.short2url.in/": ["https://technemo.xyz/blog/", "https://technemo.xyz/blog/", 5],
-}
-
-def bypass_type1(url):
-    """Type 1: form with id=go-link, POST to /links/go"""
-    print(f"[*] type1: {url}", file=sys.stderr)
+def bypass_type_form(url):
+    """Generic form-based bypass for Indian shorteners"""
     domain = urllib.parse.urlparse(url).netloc.lower()
     slug = url.rstrip("/").split("/")[-1]
 
-    form_domain = sleep = None
-    for key, cfg in {**TYPE1_CONFIG, **TYPE2_CONFIG}.items():
-        if key in url.replace("http://", "https://"):
-            form_domain = cfg[0]
-            sleep = cfg[-1]
+    form_domain = referer = None
+    sleep_time = 7
+    for key, cfg in TYPE_SERVICES.items():
+        if key in url.lower():
+            form_domain, referer, sleep_time, _ = cfg
             break
+
     if not form_domain:
-        form_domain = f"https://{domain}/"
-        sleep = 7
+        form_domain = referer = f"https://{domain}/"
 
     cookie = tempfile.mktemp()
-    def c(args): return curl(args, cookie)
-
-    ref = form_domain + slug
-    html, _ = c([ref, "-H", f"User-Agent: {UA}", "-H", f"Referer: {form_domain}"])
-
-    data = extract_form_inputs(html)
-    if not data:
-        os.remove(cookie)
-        return None
-
-    time.sleep(sleep)
-    raw, _ = c([
-        f"{form_domain.rstrip('/')}/links/go",
-        "-H", f"User-Agent: {UA}",
-        "-H", "X-Requested-With: XMLHttpRequest",
-        "-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8",
-        "-H", f"Referer: {ref}",
-        "--data", "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in data.items()),
-    ], cookie, 15)
     try:
-        final = json.loads(raw).get("url", "")
+        html, _ = curl([form_domain + slug, "-H", f"User-Agent: {UA}", "-H", f"Referer: {referer}"], cookie)
+        data = extract_form_inputs(html)
+        if not data:
+            os.remove(cookie)
+            return None
+
+        time.sleep(sleep_time)
+        raw, _ = curl([
+            f"{form_domain.rstrip('/')}/links/go",
+            "-H", f"User-Agent: {UA}",
+            "-H", "X-Requested-With: XMLHttpRequest",
+            "-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8",
+            "-H", f"Referer: {form_domain + slug}",
+            "--data", "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in data.items()),
+        ], cookie, 15)
         os.remove(cookie)
-        return final if final else None
-    except json.JSONDecodeError:
-        os.remove(cookie)
+        try:
+            final = json.loads(raw).get("url", "")
+            return final if final else None
+        except json.JSONDecodeError:
+            return None
+    except Exception:
+        try: os.remove(cookie)
+        except: pass
         return None
 
-# ═══════════════════════════════════════════════════════════════════
-# specific shortener handlers
-# ═══════════════════════════════════════════════════════════════════
+# ── try2link.com ─────────────────────────────────────────────────
 
 def bypass_try2link(url):
-    """try2link.com — timestamp param + form flow"""
     print(f"[*] try2link: {url}", file=sys.stderr)
     cookie = tempfile.mktemp()
     url = url.rstrip("/")
     try:
-        params = f"?d={int(time.time()) + 240}"
-        html, _ = curl([url + params, "-H", f"User-Agent: {UA}", "-H", "Referer: https://newforex.online/"], cookie)
+        ts = int(time.time()) + 240
+        html, _ = curl([f"{url}?d={ts}", "-H", f"User-Agent: {UA}", "-H", "Referer: https://newforex.online/"], cookie)
         data = extract_form_inputs(html)
         if not data:
             os.remove(cookie)
@@ -393,25 +499,22 @@ def bypass_try2link(url):
         time.sleep(7)
         raw, _ = curl([
             "https://try2link.com/links/go",
-            "-H", f"User-Agent: {UA}",
-            "-H", "Host: try2link.com",
+            "-H", f"User-Agent: {UA}", "-H", "Host: try2link.com",
             "-H", "X-Requested-With: XMLHttpRequest",
             "-H", "Content-Type: application/x-www-form-urlencoded; charset=UTF-8",
-            "-H", f"Referer: {url}",
-            "-H", "Origin: https://try2link.com",
+            "-H", f"Referer: {url}", "-H", "Origin: https://try2link.com",
             "--data", "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in data.items()),
         ], cookie, 15)
         os.remove(cookie)
-        d = json.loads(raw)
-        return d.get("url")
+        return json.loads(raw).get("url")
     except Exception:
-        try:
-            os.remove(cookie)
+        try: os.remove(cookie)
         except: pass
         return None
 
+# ── gplinks.co ───────────────────────────────────────────────────
+
 def bypass_gplinks(url):
-    """gplinks.co / gplinks.in — redirect -> vid param -> form flow"""
     print(f"[*] gplinks: {url}", file=sys.stderr)
     cookie = tempfile.mktemp()
     url = url.rstrip("/")
@@ -419,7 +522,6 @@ def bypass_gplinks(url):
         out, _ = curl([url, "-o", "/dev/null", "-w", "%{redirect_url}", "-H", f"User-Agent: {UA}"], cookie)
         vid = out.split("=")[-1].strip() if "=" in out else ""
         url2 = f"{url}/?{vid}" if vid else url
-
         html, _ = curl([url2, "-H", f"User-Agent: {UA}", "-H", "Referer: https://mynewsmedia.co/"], cookie)
         data = extract_form_inputs(html)
         if not data:
@@ -435,16 +537,15 @@ def bypass_gplinks(url):
             "--data", "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in data.items()),
         ], cookie, 15)
         os.remove(cookie)
-        d = json.loads(raw)
-        return d.get("url")
+        return json.loads(raw).get("url")
     except Exception:
-        try:
-            os.remove(cookie)
+        try: os.remove(cookie)
         except: pass
         return None
 
+# ── pkin.me ──────────────────────────────────────────────────────
+
 def bypass_pkin(url):
-    """pkin.me — mobile UA + go.paisakamalo.in form flow"""
     print(f"[*] pkin: {url}", file=sys.stderr)
     cookie = tempfile.mktemp()
     slug = url.rstrip("/").split("/")[-1]
@@ -465,27 +566,23 @@ def bypass_pkin(url):
             "--data", "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in data.items()),
         ], cookie, 15)
         os.remove(cookie)
-        d = json.loads(raw)
-        return d.get("url")
+        return json.loads(raw).get("url")
     except Exception:
-        try:
-            os.remove(cookie)
+        try: os.remove(cookie)
         except: pass
         return None
 
+# ── shareus.in ───────────────────────────────────────────────────
+
 def bypass_shareus(url):
-    """shareus.in — Firebase Cloud Function"""
     print(f"[*] shareus: {url}", file=sys.stderr)
     token = url.split("=")[-1]
     try:
-        out, _ = curl([f"https://us-central1-my-apps-server.cloudfunctions.net/r?shortid={token}", "-H", f"User-Agent: {UA}"])
+        out, _ = curl([f"https://us-central1-my-apps-server.cloudfunctions.net/r?shortid={token}",
+                       "-H", f"User-Agent: {UA}"])
         return out.strip()
-    except Exception:
+    except:
         return None
-
-def bypass_shortly(url):
-    """shortly.xyz — form-based"""
-    return bypass_type1(url)
 
 # ── redirect followers ───────────────────────────────────────────
 
@@ -521,25 +618,27 @@ def bypass_ouo(url):
 # ═══════════════════════════════════════════════════════════════════
 
 DOMAIN_HANDLERS = {
-    # Native token-based
+    # Token-based
     "aylink.co": bypass_aylink,
     "ay.live": bypass_aylink,
     "cpmlink.co": bypass_cpmlink,
     "cpmlink.pro": bypass_cpmlink,
+    # GraphQL
     "linkvertise.com": bypass_linkvertise,
     "link-target.net": bypass_linkvertise,
     "link-center.net": bypass_linkvertise,
     "link-hub.net": bypass_linkvertise,
     "direct-link.net": bypass_linkvertise,
-    # Specific handlers
+    # Specific bypasses
+    "adf.ly": bypass_adfly,
+    "boost.ink": bypass_boost,
+    "mboost.me": bypass_boost,
     "try2link.com": bypass_try2link,
     "gplinks.co": bypass_gplinks,
     "gplinks.in": bypass_gplinks,
     "pkin.me": bypass_pkin,
     "shareus.in": bypass_shareus,
-    "shortly.xyz": bypass_shortly,
     # Redirect followers
-    "adf.ly": bypass_redirect,
     "adfoc.us": bypass_redirect,
     "shorte.st": bypass_redirect,
     "ouo.io": bypass_ouo,
@@ -571,27 +670,34 @@ DOMAIN_HANDLERS = {
     "fb.me": bypass_redirect,
     "lnkd.in": bypass_redirect,
     "shorturl.ac": bypass_redirect,
-    "shorte.st": bypass_redirect,
     "festyy.com": bypass_redirect,
     "gestyy.com": bypass_redirect,
     "ceesty.com": bypass_redirect,
     "corneey.com": bypass_redirect,
     "destyy.com": bypass_redirect,
+    "t2m.io": bypass_redirect,
+    "disq.us": bypass_redirect,
+    "page.link": bypass_redirect,
+    "shortcm.li": bypass_redirect,
+    "dis.gd": bypass_redirect,
+    "b.link": bypass_redirect,
+    "nzn.me": bypass_redirect,
+    # Base64-encoded URL in query param
+    "anonym.to": bypass_base64_param,
+    "anonymz.com": bypass_base64_param,
+    "hidereferrer.com": bypass_base64_param,
+    "leechall.com": bypass_base64_param,
 }
 
-# Type 1/2 services will be auto-detected at runtime
-TYPE_SERVICE_DOMAINS = set()
-for k in TYPE1_CONFIG: TYPE_SERVICE_DOMAINS.add(k.rstrip("/").split("/")[0] if "/" in k else k)
-for k in TYPE2_CONFIG: TYPE_SERVICE_DOMAINS.add(k.rstrip("/").split("/")[0] if "/" in k else k)
-
-# Fallback-only list
+# Fallback-only (browser-based social unlocks)
 FALLBACK_ONLY = [
-    "work.ink", "workink.click", "boost.ink", "mboost.me", "rekonise.com",
+    "work.ink", "workink.click", "rekonise.com",
     "lootlabs.com", "lootlinks.com", "loot-link.com",
     "sub2unlock.com", "sub2unlock.net", "sub2unlock.io",
     "sub2get.com", "sub4unlock.com", "sub4unlock.pro", "subfinal.com",
     "social-unlock.com", "socialwolvez.com", "lockr.social",
-    "just2earn.com",
+    "just2earn.com", "letsboost.net", "bst.gg", "booo.st",
+    "1link.club", "1shortlink.com", "bomurl.com",
 ]
 
 def get_handler(url):
@@ -599,10 +705,9 @@ def get_handler(url):
     for key, handler in DOMAIN_HANDLERS.items():
         if key in domain:
             return handler, "native"
-    # Check type1/type2 services
-    for svc in TYPE_SERVICE_DOMAINS:
-        if svc in domain:
-            return bypass_type1, "type1"
+    for key in TYPE_SERVICES:
+        if key in url.lower():
+            return bypass_type_form, "form"
     for svc in FALLBACK_ONLY:
         if svc in domain:
             return None, "fallback_only"
@@ -635,15 +740,15 @@ def main():
 
     if LIST_SERVICES_FLAG in sys.argv:
         native = sorted(DOMAIN_HANDLERS.keys())
-        type_svc = sorted(TYPE_SERVICE_DOMAINS)
+        form = sorted(TYPE_SERVICES.keys())
         fallback = sorted(FALLBACK_ONLY)
-        print("=== Native Handlers ===")
+        print("=== Native Handlers (direct) ===")
         for d in native: print(f"  {d}")
-        print(f"\n=== Type-1/2 Form-based (auto-detected) ===")
-        for d in type_svc: print(f"  {d}")
-        print(f"\n=== Fallback Only (need native impl) ===")
+        print(f"\n=== Form-based (auto-detected) ===")
+        for d in form: print(f"  {d}")
+        print(f"\n=== Fallback Only ===")
         for d in fallback: print(f"  {d}")
-        all_native = set(native) | set(type_svc)
+        all_native = set(native) | set(form)
         print(f"\nTotal: {len(all_native)} native + {len(fallback)} fallback = {len(all_native)+len(fallback)} services")
         sys.exit(0)
 
