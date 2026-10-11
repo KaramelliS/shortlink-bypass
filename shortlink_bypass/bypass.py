@@ -37,7 +37,63 @@ def curl(args, cookie=None, timeout=30):
     return r.stdout, r.stderr
 
 def clean_url(url):
-    return url.strip().strip('"').strip("'")
+    """Normalize an HTTP(S) URL, adding HTTPS when the scheme is omitted."""
+    if not isinstance(url, str):
+        return None
+
+    url = url.strip().strip('"').strip("'")
+    if not url or any(char.isspace() or ord(char) < 32 or ord(char) == 127 for char in url):
+        return None
+
+    # A missing scheme is convenient for CLI users; an explicitly supplied
+    # non-HTTP scheme should never be handed to curl or a service handler.
+    if not re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*://", url):
+        url = "https://" + url
+
+    try:
+        parsed = urllib.parse.urlsplit(url)
+        scheme = parsed.scheme.lower()
+        if scheme not in ("http", "https") or not parsed.hostname:
+            return None
+        if parsed.username is not None or parsed.password is not None:
+            return None
+        port = parsed.port
+        host = normalize_host(parsed.hostname)
+    except (TypeError, ValueError, UnicodeError):
+        return None
+
+    if not host:
+        return None
+
+    netloc = f"[{host}]" if ":" in host else host
+    if port is not None:
+        netloc += f":{port}"
+    return urllib.parse.urlunsplit(
+        (scheme, netloc, parsed.path, parsed.query, parsed.fragment)
+    )
+
+
+def normalize_host(host):
+    """Return a canonical host for comparisons, or an empty string if invalid."""
+    if not isinstance(host, str) or not host:
+        return ""
+    try:
+        if ":" in host:  # IPv6 literals are not IDNA hostnames.
+            return host.lower()
+        return host.rstrip(".").encode("idna").decode("ascii").lower()
+    except (UnicodeError, ValueError):
+        return ""
+
+
+def domain_matches(host, registered_domain):
+    """Match a hostname exactly or as a true subdomain, never by substring."""
+    host = normalize_host(host)
+    registered_domain = normalize_host(registered_domain)
+    return bool(
+        host
+        and registered_domain
+        and (host == registered_domain or host.endswith("." + registered_domain))
+    )
 
 def follow_bildirim(final, cookie, ref):
     if "bildirim.online" in final:
@@ -85,15 +141,7 @@ def is_known_shortener(domain):
     global KNOWN_SHORTENERS
     if KNOWN_SHORTENERS is None:
         KNOWN_SHORTENERS = load_shortener_list()
-    domain = domain.lower()
-    # Direct match
-    if domain in KNOWN_SHORTENERS:
-        return True
-    # Check if any known shortener is a substring
-    for d in KNOWN_SHORTENERS:
-        if d in domain:
-            return True
-    return False
+    return any(domain_matches(domain, known) for known in KNOWN_SHORTENERS)
 
 def update_shortener_list():
     """Download latest shortener list from PeterDaveHello"""
@@ -558,21 +606,26 @@ FALLBACK_ONLY = {
 }
 
 def get_handler(url):
-    domain = urllib.parse.urlparse(url).netloc.lower()
+    try:
+        domain = normalize_host(urllib.parse.urlsplit(url).hostname or "")
+    except ValueError:
+        domain = ""
+    if not domain:
+        return None, "invalid"
 
     # Check specific handlers
     for key, handler in SPECIFIC_HANDLERS.items():
-        if key in domain:
+        if domain_matches(domain, key):
             return handler, "specific"
 
     # Check type form services
     for key in TYPE_SERVICES:
-        if key in url.lower():
+        if domain_matches(domain, key):
             return bypass_type_form, "form"
 
     # Check fallback
     for svc in FALLBACK_ONLY:
-        if svc in domain:
+        if domain_matches(domain, svc):
             return None, "fallback_only"
 
     # Check if it's a known shortener from PeterDaveHello list
@@ -589,14 +642,14 @@ UPDATE_LIST = "--update-list"
 
 def bypass(url):
     url = clean_url(url)
-    if not url.startswith("http"):
-        url = "https://" + url
+    if url is None:
+        return None
     handler, htype = get_handler(url)
     if handler:
         try:
             result = handler(url)
             if result:
-                return result.strip()
+                return clean_url(result)
         except Exception as e:
             print(f"[!] {type(e).__name__}: {e}", file=sys.stderr)
     return None

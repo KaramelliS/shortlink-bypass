@@ -20,11 +20,13 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Check syntax
-        run: python -m py_compile bypass.py
+        run: python -m py_compile shortlink_bypass/bypass.py
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
       - name: Test --list-services
-        run: python bypass.py --list-services
+        run: python -m shortlink_bypass --list-services
       - name: Test --help
-        run: python bypass.py 2>&1 | grep -q "Usage"
+        run: python -m shortlink_bypass 2>&1 | grep -q "Usage"
 
   pypi-publish:
     needs: test
